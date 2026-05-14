@@ -1,0 +1,101 @@
+// ==============================================================================
+// PRISMA DATABASE CONFIGURATION & SCHEMA BLUEPRINT
+// ==============================================================================
+// This file serves as the single source of truth for your database structure.
+// Prisma reads this blueprint to automatically build physical tables on Supabase,
+// establish relationships, and generate static TypeScript type definitions.
+
+// 1. DATABASE CONNECTION PARAMETERS
+// Tells Prisma which database provider to use and how to authenticate.
+datasource db {
+  provider  = "postgresql" // We are using PostgreSQL hosted on Supabase
+  
+  // DATABASE_URL points to Supabase's connection pooler (Port 6543).
+  // It recycles database connections during high frontend traffic to prevent server crashes.
+  url       = env("DATABASE_URL")
+  
+  // DIRECT_URL connects directly to PostgreSQL (Port 5432).
+  // This bypasses pooling and is strictly used for migrations/schema updates (npx prisma db push).
+  directUrl = env("DIRECT_URL")
+}
+
+// 2. PRISMA CLIENT GENERATOR
+// Instructs Prisma to automatically compile and generate helper TypeScript functions
+// under 'node_modules/@prisma/client' based on the models defined below.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==============================================================================
+// DATABASE TABLES & RELATIONSHIPS
+// ==============================================================================
+
+// A. USER PROFILE DATA
+// Stores user accounts and authorization details.
+model User {
+  id        String     @id @default(uuid()) // Primary Key: Auto-generates a unique UUID (Universal Unique ID) string
+  email     String     @unique             // Constraints: Ensures no two users can register with the same email address
+  password  String                          // Hashed Password string (never store passwords in plain-text!)
+  createdAt       DateTime   @default(now())     // Meta-log: Automatically registers the exact registration timestamp
+  globalThreshold Float      @default(-2.0)      // SETTING: User-defined global alert sensitivity (e.g., -2.0%)
+  
+  // RELATION: Virtual list pointing to coins this user has added to their wishlist.
+  // This field does not physically exist as a column in the database User table.
+  wishlists Wishlist[]
+  alerts    Alert[]
+  eventLogs EventLog[]
+
+  @@map("users") // Database Mapping: Renames the actual table in PostgreSQL to lowercase "users" for SQL standard naming
+}
+
+// B. WISHLIST ITEMS
+// Tracks individual coins added to a user's wish list.
+model Wishlist {
+  id        String   @id @default(uuid()) // Primary Key: Auto-generated UUID string
+  userId    String                        // Foreign Key: Points back to the User who owns this wishlist entry
+  assetId   String   // The unique API slug of the coin (e.g., "bitcoin" or "ethereum") from CoinGecko
+  assetName String   // The clean display name of the coin (e.g., "Bitcoin" or "Ethereum")
+  
+  // RELATION DEFINITION:
+  // Maps 'userId' to the 'id' of the 'User' model.
+  // 'onDelete: Cascade' ensures that if a User is deleted, all their wishlists are wiped automatically!
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // COMPOSITE INDEX: Ensures a user cannot add the exact same asset to their wishlist multiple times.
+  @@unique([userId, assetId])
+  
+  @@map("wishlists") // Database Mapping: Renames the physical PostgreSQL table to lowercase "wishlists"
+}
+
+// C. CRYPTO ALERTS
+// Holds active targets set by users to monitor price drop events.
+model Alert {
+  id             String   @id @default(uuid()) // Primary Key: Auto-generated UUID
+  userId         String   // Foreign Key: Points to the User who owns this alert
+  assetId        String   // The CoinGecko API slug of the asset to monitor (e.g., "solana")
+  price          Float    // The base price (benchmark rate) of the coin when the user created the alert
+  dropPercentage Float    // The user's target drop limit (e.g., 5.5 representing a 5.5% drop limit)
+  isTriggered    Boolean  @default(false) // Whether the alert has been triggered
+  createdAt      DateTime @default(now())     // Meta-log: Timestamp when the alert was created
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("alerts") // Database Mapping: Renames the physical PostgreSQL table to lowercase "alerts"
+}
+
+// D. HISTORICAL EVENT AUDIT LOGS
+// Records critical system events (such as price drops, triggers, and network errors) 
+// to a shared table that can be queried by the Next.js frontend.
+model EventLog {
+  id        String   @id @default(uuid()) // Primary Key: Auto-generated UUID
+  userId    String?  // Foreign Key: Points to the User who owns this log (optional for system-wide logs)
+  assetId   String   // The CoinGecko API slug of the asset (e.g. "bitcoin")
+  event     String   // Type of event (e.g. "ALERT_TRIGGERED", "SYSTEM_COOLDOWN")
+  message   String   // Descriptive summary of what occurred
+  fingerprint String? @unique // Unique hash to prevent duplicate logs (userId:assetId:event:window)
+  createdAt DateTime @default(now())     // Timestamp when the event occurred
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("event_logs") // Database Mapping: Renames table in PostgreSQL to lowercase "event_logs"
+}

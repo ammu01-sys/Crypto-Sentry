@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 2%;       /* #050505 (Pitch Black) */
+    --foreground: 0 0% 100%;     /* #FFFFFF (White) */
+    --card: 0 0% 7%;             /* #111111 (Dark Gray Surface) */
+    --card-foreground: 0 0% 90%;
+    --primary: 135 100% 50%;     /* #00FF41 (Neon Green Accents) */
+    --primary-foreground: 0 0% 0%;
+    --primary-glow: 135 100% 50% / 0.4;
+    --muted: 0 0% 45%;
+    --muted-foreground: 0 0% 30%;
+    --accent: 0 100% 60%;        /* #FF3B30 (High-Energy Red Warning) */
+    --accent-foreground: 0 0% 100%;
+    --radius: 12px;
+  }
+  
+  body {
+    background-color: #050505;
+    color: #ffffff;
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* CYBER GLOW & TERMINAL STYLES */
+@layer utilities {
+  .cyber-glow-green {
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+  }
+  
+  .cyber-glow-green-hover:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
+    border-color: #00FF41;
+  }
+
+  .cyber-glow-red {
+    box-shadow: 0 0 15px rgba(255, 59, 48, 0.4);
+  }
+  
+  .cyber-glow-red-hover:hover {
+    box-shadow: 0 0 20px rgba(255, 59, 48, 0.6);
+    border-color: #ef4444;
+  }
+
+  /* Scanlines Overlay */
+  .cyber-scanlines {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cyber-scanlines::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 2;
+    background-size: 100% 4px, 6px 100%;
+    pointer-events: none;
+    opacity: 0.45;
+  }
+
+  /* Pulse alert animation */
+  @keyframes alert-pulse {
+    0%, 100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  .cyber-pulse-red {
+    animation: alert-pulse 2s infinite ease-in-out;
+  }
+
+  /* Custom Monospace Numbers styling */
+  .font-terminal-mono {
+    font-family: var(--font-mono), monospace;
+  }
+}
+
+/* TERMINAL COMPONENT UTILITIES */
+.cyber-panel {
+  background-color: #111111;
+  border: 1px solid rgba(0, 255, 65, 0.1);
+  border-radius: 12px;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cyber-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.3), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.cyber-panel:hover::after {
+  opacity: 1;
+}
+
+/* Glow on hover */
+.cyber-panel-interactive:hover {
+  border-color: rgba(0, 255, 65, 0.25);
+  box-shadow: 0 4px 20px rgba(0, 255, 65, 0.05);
+  transform: translateY(-2px);
+}
+
+/* SCROLLBAR CUSTOMIZATION */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00FF41;
+}
+
+/* Phosphor Text Glow */
+.phosphor-glow-green {
+  text-shadow: 0 0 4px rgba(0, 255, 65, 0.5);
+}
+
+.phosphor-glow-red {
+  text-shadow: 0 0 4px rgba(255, 59, 48, 0.5);
+}

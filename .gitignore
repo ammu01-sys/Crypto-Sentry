@@ -1,0 +1,57 @@
+# ==============================================================================
+# BITBASH CRYPTO SENTRY - MASTER .GITIGNORE CONFIGURATION
+# ==============================================================================
+
+# 1. DEPENDENCIES
+node_modules/
+/jspm_packages/
+/web_modules/
+
+# 2. NEXT.JS BUILD AND TEMPORARY OUTPUTS
+.next/
+out/
+build/
+dist/
+tsconfig.tsbuildinfo
+
+# 3. ENVIRONMENT VARIABLES AND SECRETS (CRITICAL SECURITY)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# 4. SERVER SYSTEM LOGS
+*.log
+server/logs/*.log
+server/logs/
+
+# 5. DIAGNOSTICS AND LOCAL CACHES
+.pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+npm-debug.log*
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# 6. OPERATING SYSTEM TRASH FILES
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# 7. IDE SPECIFIC PATHS
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
