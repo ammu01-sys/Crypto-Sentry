@@ -2,74 +2,80 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 
-// Simple robust regex validation for email envelopes
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Only letters, numbers, underscores, hyphens — 3 to 24 chars
+const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,24}$/;
 
-/**
- * POST METHOD: Registers a new security agent in the system.
- * Endpoint: POST /api/register
- */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, password } = body;
+    const { email, password, username } = body;
 
-    // 1. PARAMETERS INTEGRITY CHECK
-    if (!email || !password) {
+    // 1. Required fields
+    if (!email || !password || !username) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Both email and password fields are required to establish an identity node.',
-        },
+        { success: false, error: 'Email, username, and password are all required.' },
         { status: 400 }
       );
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail    = email.trim().toLowerCase();
+    const cleanUsername = username.trim();
 
-    // 2. INPUT ENVELOPE STRUCTURAL VALIDATIONS
+    // 2. Email format
     if (!EMAIL_REGEX.test(cleanEmail)) {
       return NextResponse.json(
-        { success: false, error: 'Registration rejected: Invalid email address pattern.' },
+        { success: false, error: 'Invalid email address format.' },
         { status: 400 }
       );
     }
 
-    if (password.length < 6) {
+    // 3. Username format (3–24 chars, letters/numbers/underscore/hyphen)
+    if (!USERNAME_REGEX.test(cleanUsername)) {
       return NextResponse.json(
         {
           success: false,
           error:
-            'Registration rejected: Passwords must be at least 6 characters long to secure encryption bounds.',
+            'Username must be 3–24 characters and contain only letters, numbers, underscores, or hyphens.',
         },
         { status: 400 }
       );
     }
 
-    // 3. COLLISION VERIFICATION (PREVENT DUPLICATES)
-    const existingUser = await prisma.user.findUnique({
-      where: { email: cleanEmail },
-    });
-
-    if (existingUser) {
+    // 4. Password length
+    if (password.length < 6) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Identity conflict: An agent has already claimed this credentials slot.',
-        },
+        { success: false, error: 'Password must be at least 6 characters.' },
+        { status: 400 }
+      );
+    }
+
+    // 5. Duplicate email check
+    const emailConflict = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (emailConflict) {
+      return NextResponse.json(
+        { success: false, error: 'Account already exists with this email. Please log in.' },
         { status: 409 }
       );
     }
 
-    // 4. CRYPTOGRAPHIC PROTECTION LAYERS
-    // Generate secure encryption salt and salt-hash on top of plain passwords
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    // 6. Duplicate username check
+    const usernameConflict = await prisma.user.findUnique({
+      where: { username: cleanUsername },
+    });
+    if (usernameConflict) {
+      return NextResponse.json(
+        { success: false, error: 'Username is already taken. Choose a different one.' },
+        { status: 409 }
+      );
+    }
 
-    // 5. ATOMIC Supabase TRANSACTION
+    // 7. Hash password and create user
+    const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await prisma.user.create({
       data: {
-        email: cleanEmail,
+        email:    cleanEmail,
+        username: cleanUsername,
         password: hashedPassword,
       },
     });
@@ -77,22 +83,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: 'Security credentials compiled successfully. Profile active.',
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          createdAt: newUser.createdAt,
-        },
+        message: 'Account created successfully.',
+        user: { id: newUser.id, email: newUser.email, username: newUser.username },
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error('Registration processing fault:', error);
+    console.error('Registration error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Surveillance terminal registry crashed due to an internal server fault.',
-      },
+      { success: false, error: 'Internal server error during registration.' },
       { status: 500 }
     );
   }

@@ -1,14 +1,21 @@
 # 🖥️ SENTRY SYSTEM OPERATIONAL COMMANDS
 
-Use these standard commands inside your Windows terminal to manage, run, compile, and configure the Sentry Cyber-Terminal.
+Use these standard commands inside your terminal to manage, run, compile, and configure the Sentry Cyber-Terminal.
 
 ---
 
 ## 1. Primary Servers (Core Stack)
 
+### 🔹 Full Stack Surveillance (Simultaneous)
+Launches both the Next.js dashboard and the Express engine in parallel.
+```bash
+# Run both servers simultaneously using concurrently
+npm run dev:all
+```
+
 ### 🔹 Next.js Frontend Dashboard
 Serves the security console at `http://localhost:3000`.
-```powershell
+```bash
 # Run the Next.js Frontend in development mode (with hot-reload)
 npm run dev
 
@@ -21,9 +28,9 @@ npm run start
 
 ### 🔹 Background Surveillance Server
 Runs the Express daemon on port `4000` to monitor prices, compute indicators, and trigger active alerts.
-```powershell
+```bash
 # Start the surveillance server daemon in dev mode (hot-reloads via tsx watch)
-npm run server:dev
+npm run server
 
 # Start the surveillance server in production mode
 npm run server:start
@@ -33,9 +40,12 @@ npm run server:start
 
 ## 2. Database Schema & Seed Management
 
-Synchronize, apply, or reset tables on your Supabase PostgreSQL instance using the Prisma Client.
-```powershell
-# Sync local prisma schema definitions directly to Supabase tables
+Synchronize, apply, or reset tables on your PostgreSQL instance using the Prisma Client.
+```bash
+# Apply migrations and update database schema
+npx prisma migrate dev
+
+# Sync local prisma schema definitions directly to database tables (Dry run/Push)
 npx prisma db push
 
 # Re-generate the TS static typings inside node_modules/@prisma/client

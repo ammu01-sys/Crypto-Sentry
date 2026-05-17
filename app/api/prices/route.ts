@@ -43,11 +43,18 @@ const assetMetadata: Record<string, { name: string; symbol: string }> = {
   near: { name: 'Near', symbol: 'NEAR' },
 };
 
+/**
+ * GET METHOD: Retrieve Live Pricing Data
+ * This API acts as a "Proxy." Instead of asking CoinGecko directly (which is slow),
+ * it asks our background Express engine for the cached prices.
+ */
 export async function GET() {
+  // The URL of our background engine's memory cache
   const backendUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/cache`;
 
   try {
-    // Attempt to pull raw pricing cache records from Express Server
+    // 1. ATTEMPT TO FETCH FROM BACKGROUND CACHE
+    // We use 'no-store' to ensure we always get the absolute latest prices from the engine.
     const response = await fetch(backendUrl, {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
@@ -58,12 +65,12 @@ export async function GET() {
     }
 
     const json = await response.json();
-
-    // Supports both flat dictionary cache databases and nested formats:
     const cacheData = json.cache ? json.cache : json;
     const keys = Object.keys(cacheData);
     const priceKeys = keys.filter((key) => key.startsWith('price:'));
 
+    // 2. DATA TRANSFORMATION
+    // We convert the raw cache data into a clean format that the UI can easily map over.
     if (priceKeys.length > 0) {
       const data = priceKeys.map((key) => {
         const id = key.replace('price:', '');
@@ -74,6 +81,7 @@ export async function GET() {
           symbol: val.symbol || id.toUpperCase(),
           price: parseFloat(val.price || 0),
           change24h: parseFloat(val.change24h || 0),
+          image: val.image || null,   // ← coin logo URL from CoinGecko
         };
       });
 
@@ -84,16 +92,19 @@ export async function GET() {
           success: true,
           data,
           lastUpdated,
-          isMock: false,
+          isMock: false, // Signals the UI that this is REAL data
         },
         { status: 200 }
       );
     }
 
-    throw new Error('Invalid database cache structures returned from Sentry backend.');
-  } catch {
-    // GRACEFUL RECOVERY FALLBACK: If Express is offline, drift mock dataset
+    throw new Error('Invalid database cache structures.');
+  } catch (error) {
+    // 3. GRACEFUL RECOVERY (Offline Fallback)
+    // If the Express backend is offline, we don't show an error.
+    // Instead, we "drift" a mock dataset so the UI still looks alive.
     const data = Object.keys(currentBases).map((id) => {
+      // Create a tiny bit of random movement so prices "tick" in the UI
       const drift = Math.random() * 0.003 - 0.0015;
       currentBases[id] += currentBases[id] * drift;
       currentChanges[id] += drift * 100;
@@ -114,13 +125,14 @@ export async function GET() {
       {
         success: true,
         data,
-        lastUpdated: 0, // 0 signals stale fallback
-        isMock: true,
-        fallbackMessage: 'Express backend unreachable. Serving local offline mock fallback.',
+        lastUpdated: 0, 
+        isMock: true, // Signals the UI that we are in "Offline/Demo" mode
+        fallbackMessage: 'Serving local offline mock fallback.',
       },
       { status: 200 }
     );
   }
 }
+
 
 export const dynamic = 'force-dynamic';

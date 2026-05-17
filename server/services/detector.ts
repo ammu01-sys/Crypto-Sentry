@@ -72,19 +72,42 @@ async function initializeCooldowns(): Promise<void> {
  * Executes a global autonomous scan across all cached market assets.
  * Implements intelligent delta-based deduplication.
  */
+/**
+ * THE SURVEILLANCE SCANNER
+ * This loop runs every 30 seconds and acts like a security guard.
+ * It checks EVERY user's alert limits against the LIVE prices in our memory cache.
+ */
 export async function evaluateAlerts(): Promise<void> {
   logger.info('Executing global autonomous market surveillance scan...');
 
   try {
-    const users = await (prisma as any).user.findMany({
-      select: { id: true, globalThreshold: true },
-    });
+    // 1. GATHER DATA
+    // Fetch all users and their global watchlist mapping in bulk
+    const [users, watchlists] = await Promise.all([
+      prisma.user.findMany({
+        select: { id: true, globalThreshold: true },
+      }),
+      prisma.wishlist.findMany({
+        select: { userId: true, assetId: true },
+      }),
+    ]);
+
+    // Map watchlists by user for O(1) lookup: userId -> Set of assetIds
+    const watchlistMap = new Map<string, Set<string>>();
+    for (const item of watchlists) {
+      if (!watchlistMap.has(item.userId)) {
+        watchlistMap.set(item.userId, new Set());
+      }
+      watchlistMap.get(item.userId)?.add(item.assetId);
+    }
 
     const cachedData = cache.getAll();
     const priceKeys = Object.keys(cachedData).filter((k: string) => k.startsWith('price:'));
 
     if (priceKeys.length === 0 || users.length === 0) return;
 
+    // 2. THE SCAN LOOP
+    // For every coin in our price snapshot...
     for (const key of priceKeys) {
       const assetId = key.replace('price:', '');
       const cached = cache.get<CachedPrice>(key);
@@ -96,10 +119,17 @@ export async function evaluateAlerts(): Promise<void> {
 
       let terminalLogIssued = false;
 
+      // ...and for every user in the system...
       for (const user of users) {
-        const threshold = (user as any).globalThreshold;
+        // WATCHLIST FILTER: Only proceed if the user is actively watching this asset
+        const userWatchlist = watchlistMap.get(user.id);
+        if (!userWatchlist || !userWatchlist.has(assetId)) {
+          continue; 
+        }
+
+        const threshold = user.globalThreshold;
         
-        // Define surveillance tasks for this user/asset pair
+        // 3. DEFINE THE "CRIMES" (Triggers)
         const tasks = [
           { type: 'SENTRY_DROP', active: threshold < 0 && currentChange <= threshold },
           { type: 'SENTRY_SPIKE', active: threshold > 0 && currentChange >= threshold },
@@ -110,7 +140,6 @@ export async function evaluateAlerts(): Promise<void> {
           const trackerKey = `${user.id}:${assetId}:${task.type}`;
 
           if (!task.active) {
-            // RESET LOGIC: Clear state if condition is no longer met
             alertTracker.delete(trackerKey);
             continue;
           }
@@ -118,14 +147,13 @@ export async function evaluateAlerts(): Promise<void> {
           const lastState = alertTracker.get(trackerKey);
           const now = Date.now();
 
-          // DEDUPLICATION & MOVEMENT VALIDATION
+          // 4. DEDUPLICATION (The "Anti-Spam" Logic)
           let shouldAlert = !lastState;
           if (lastState) {
             const priceDelta = Math.abs(currentPrice - lastState.price) / (lastState.price || 1);
             const changeDelta = Math.abs(currentChange - lastState.change);
             const timeDelta = now - lastState.timestamp;
 
-            // Trigger update if price moved >1% or delta moved >1% AND 10 mins passed
             if (timeDelta > 10 * 60 * 1000 && (priceDelta > 0.01 || changeDelta > 1.0)) {
               shouldAlert = true;
             }
@@ -138,7 +166,8 @@ export async function evaluateAlerts(): Promise<void> {
             try {
               const cleanMessage = `[${task.type}] ${symbol} | Price: $${currentPrice.toFixed(2)} | 24h_Delta: ${currentChange.toFixed(2)}% | Threshold: ${threshold}%`;
 
-              await (prisma as any).eventLog.create({
+              // 5. RECORD THE EVENT
+              await prisma.eventLog.create({
                 data: {
                   userId: user.id,
                   assetId,
@@ -155,7 +184,7 @@ export async function evaluateAlerts(): Promise<void> {
               });
 
               if (!terminalLogIssued) {
-                logger.warn(`[SURVEILLANCE_BREACH] ${task.type} detected for ${symbol} @ threshold ${threshold}%. Syncing...`);
+                logger.warn(`[WATCHLIST_BREACH] ${task.type} detected for ${symbol} on user ${user.id}.`);
                 terminalLogIssued = true;
               }
             } catch (dbError: any) {
@@ -170,6 +199,7 @@ export async function evaluateAlerts(): Promise<void> {
     logger.error('Sentry surveillance failure: %s', error.message || error);
   }
 }
+
 
 // Global variable holding the running setInterval reference
 let evaluationIntervalId: NodeJS.Timeout | null = null;

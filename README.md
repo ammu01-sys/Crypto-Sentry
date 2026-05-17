@@ -32,14 +32,14 @@ graph TD
 
     subgraph "External & Data Layer"
         Cache <--> CG[(CoinGecko API)]
-        Detector <--> DB[(Supabase PostgreSQL)]
+        Detector <--> DB[(PostgreSQL Database)]
         API <--> DB
     end
 
     classDef default fill:#1A1F2C,stroke:#38BDF8,stroke-width:1px,color:#E2E8F0;
 ```
 
-1. **Next.js Interface (Port 3000)**: Serves the client dashboards, allows users to view assets and set alerts, and communicates with Supabase PostgreSQL via the Prisma ORM.
+1. **Next.js Interface (Port 3000)**: Serves the client dashboards, allows users to view assets and set alerts, and communicates with PostgreSQL via the Prisma ORM.
 2. **Express Background Engine (Port 4000)**: Maintains an active thread that runs asynchronous fetch schedules and evaluate loops. It pulls market rates, syncs a localized cache layer, and executes database pruning when thresholds are breached.
 
 ---
@@ -48,9 +48,15 @@ graph TD
 
 - 🔋 **Robust TypeScript Foundation**: End-to-end type safety across both the Next.js frontend and Express background system.
 - ⚡ **In-Memory Cache Layer**: Rather than querying CoinGecko coin-by-coin or constantly polling databases, current pricing data stays stored inside a high-speed, localized in-memory cache.
+### 🛡️ Security & Authentication
+- **Google OAuth 2.0**: Secure social login with persistent session handling.
+- **Two-Step Verification (2FA)**: Mandatory app-level TOTP (Google Authenticator) protection for sensitive access.
+- **Trusted Device Management**: "Remember this device" functionality that bypasses 2FA for 30 days on authorized browsers.
+- **Session Persistence**: 30-day JWT-based session longevity with secure, HTTP-only cookies.
+- **Audit Logging**: Automatic tracking of login timestamps and security events.
+- **Middleware Guard**: Robust route protection that enforces 2FA verification before granting access to dashboard telemetry.
 - 🔄 **Smart Paginated Fetcher**: Circuments CoinGecko free-tier rate limits by polling with automated multi-page aggregation, caching fallback guards, and polite request cool-down breaks.
-- 🛡️ **Exponential Backoff with Jitter**: Avoids distributed request clashes by executing retries using exponentially scaled delay timers backed by randomized mathematical micro-jitter (+-10%).
-- 🧹 **Self-Managing Database State**: When a user's price-drop threshold triggers, the alert is logged directly in the terminal, and the database row is immediately deleted to avoid redundant notifications.
+- 🧹 **Self-Managing Database State**: When a user's price-drop threshold triggers, the alert is logged directly in the terminal, and the event is recorded in the `EventLog` table for frontend retrieval.
 
 ---
 
@@ -65,21 +71,16 @@ Bitbash Crypto Sentry/
 │   ├── dashboard/            # Telemetry monitor views
 │   └── watchlist/            # Custom watch views
 ├── lib/                      # Core Shared Libraries
-│   ├── auth.ts               # NextAuth authorization adapter
+│   ├── auth.ts               # NextAuth authorization adapter (Prisma)
 │   └── prisma.ts             # Prisma Client singleton
 ├── prisma/                   # Database Schemas and Migrations
-│   └── schema.prisma         # Active Supabase PostgreSQL schema
+│   └── schema.prisma         # Pure PostgreSQL schema
 └── server/                   # Independent Express Background Engine
-    ├── config/
-    │   └── constants.ts      # Polling rate limits and supported token feeds
     ├── services/
     │   ├── cache.ts          # Centralized In-Memory Pricing Cache
     │   ├── coingecko.ts      # Paginated CoinGecko batch manager
     │   ├── detector.ts       # Periodic DB Alert evaluator
     │   └── fetcher.ts        # Pricing sync scheduler
-    ├── utils/
-    │   ├── logger.ts         # Winston dual-transport console/file logger
-    │   └── retry.ts          # Generic Exponential Backoff retry wrapper
     └── index.ts              # Express Server entry-point (Bootstrap)
 ```
 
@@ -90,7 +91,7 @@ Bitbash Crypto Sentry/
 ### 1. Prerequisites
 - **Node.js** (v18.x or newer recommended)
 - **npm** or **yarn**
-- A **Supabase PostgreSQL** database instance
+- A **PostgreSQL** database instance (Standalone or Hosted)
 
 ### 2. Configure Environment Variables
 Create a `.env` file in the root folder of the project. Add your PostgreSQL connection URI and server parameters:
@@ -99,8 +100,8 @@ Create a `.env` file in the root folder of the project. Add your PostgreSQL conn
 # ------------------------------------------------------------------------------
 # DATABASE AND ORM
 # ------------------------------------------------------------------------------
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres:YOUR_PASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+DATABASE_URL="postgresql://user:password@localhost:5432/crypto_sentry?schema=public"
+DIRECT_URL="postgresql://user:password@localhost:5432/crypto_sentry?schema=public"
 
 # ------------------------------------------------------------------------------
 # AUTHENTICATION (NextAuth)
@@ -108,28 +109,20 @@ DIRECT_URL="postgresql://postgres:YOUR_PASSWORD@aws-0-us-east-1.pooler.supabase.
 NEXTAUTH_SECRET="your-super-secure-next-auth-secret-key-phrase"
 NEXTAUTH_URL="http://localhost:3000"
 
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
 # ------------------------------------------------------------------------------
 # STANDALONE SERVER UTILITIES
 # ------------------------------------------------------------------------------
 PORT=4000
 NODE_ENV="development"
-
-# ------------------------------------------------------------------------------
-# COINGECKO PARAMETERS
-# ------------------------------------------------------------------------------
-COINGECKO_BASE_URL="https://api.coingecko.com/api/v3"
-COINGECKO_VS_CURRENCY="usd"
-COINGECKO_PER_PAGE=250
-COINGECKO_CACHE_DURATION=30000
 ```
-
-> [!WARNING]
-> Keep your `.env` private and **never** commit it to GitHub. It has been pre-configured to be ignored by our `.gitignore`.
 
 ---
 
 ### 3. Initialize Database Tables
-To sync the Prisma models into your Supabase Postgres database, run the following commands:
+To sync the Prisma models into your PostgreSQL database, run the following commands:
 
 ```bash
 # Install node dependencies
@@ -138,7 +131,7 @@ npm install
 # Generate the type-safe Prisma client
 npm run prisma:generate
 
-# Apply migrations to push schemas directly to the cloud db
+# Apply migrations to push schemas directly to the db
 npm run prisma:migrate
 ```
 
@@ -149,52 +142,13 @@ npm run prisma:migrate
 You need to start **both** engines in separate terminal windows to get the entire application running:
 
 #### 🖥️ Launch the Frontend Dashboard
-To run the Next.js visual dashboard, use:
 ```bash
 npm run dev
 # Dashboard launches locally on http://localhost:3000
 ```
 
 #### ⚙️ Launch the Express Sentry Engine
-To run the standalone background scheduler and detector:
 ```bash
 npm run server:dev
 # Sentry server boots on http://localhost:4000 and begins polling
-```
-
----
-
-## 🛠️ Verification & Health Checks
-
-Once your Sentry server is running, you can hit its endpoints to ensure it is healthy and querying processes are online:
-
-### Root Diagnostics Endpoint
-```bash
-curl http://localhost:4000/
-```
-**Expected Response:**
-```json
-{
-  "status": "online",
-  "message": "Bitbash Crypto Sentry Express Engine is operational.",
-  "timestamp": "2026-05-08T11:55:00.000Z"
-}
-```
-
-### Server Telemetry Telemetry Endpoint
-```bash
-curl http://localhost:4000/api/status
-```
-**Expected Response:**
-```json
-{
-  "success": true,
-  "engine": {
-    "name": "bitbash-crypto-sentry-background-engine",
-    "version": "1.0.0",
-    "activePolling": true,
-    "activeDetector": true
-  },
-  "uptime": 12.4281
-}
 ```

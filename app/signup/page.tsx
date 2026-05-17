@@ -4,27 +4,26 @@ import React, { useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, Key, Mail, AlertTriangle, RefreshCw, Terminal, CheckCircle2 } from 'lucide-react';
+import {
+  Shield, Key, Mail, AtSign, AlertTriangle, RefreshCw, Terminal, CheckCircle2,
+} from 'lucide-react';
+import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 
 export default function SignUpPage() {
   const { status } = useSession();
-  const router = useRouter();
+  const router     = useRouter();
 
-  // Form input trackers
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [username,        setUsername]        = useState('');
+  const [email,           setEmail]           = useState('');
+  const [password,        setPassword]        = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // UI state variables
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [error,     setError]     = useState<string | null>(null);
+  const [success,   setSuccess]   = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Auto-redirect if session is already active
   useEffect(() => {
-    if (status === 'authenticated') {
-      router.push('/dashboard');
-    }
+    if (status === 'authenticated') router.push('/dashboard');
   }, [status, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,31 +31,33 @@ export default function SignUpPage() {
     setError(null);
     setSuccess(null);
 
-    // Frontend validations
-    if (!email.trim() || !password || !confirmPassword) {
-      setError('All core credential blocks must be compiled to establish connection.');
+    // Frontend validation
+    if (!username.trim() || !email.trim() || !password || !confirmPassword) {
+      setError('All fields are required.');
       return;
     }
-
+    if (!/^[a-zA-Z0-9_-]{3,24}$/.test(username.trim())) {
+      setError('Username must be 3–24 characters: letters, numbers, _ or - only.');
+      return;
+    }
     if (password.length < 6) {
-      setError('Passphrases must contain at least 6 characters to safely arm system salts.');
+      setError('Password must be at least 6 characters.');
       return;
     }
-
     if (password !== confirmPassword) {
-      setError('Mismatched security blocks: Confirm password signature does not match.');
+      setError('Passwords do not match.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // 1. Submit POST registry payload
       const res = await fetch('/api/register', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
+        body:    JSON.stringify({
+          username: username.trim(),
+          email:    email.trim().toLowerCase(),
           password,
         }),
       });
@@ -64,34 +65,27 @@ export default function SignUpPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.error || 'Registry failed: Identity node compilation rejected.');
+        setError(data.error || 'Registration failed. Please try again.');
         setIsLoading(false);
         return;
       }
 
-      setSuccess('Identity slot successfully written! Synchronizing security parameters...');
+      setSuccess('Account created! Signing you in…');
 
-      // 2. Automated Auto-Login handshake
       const result = await signIn('credentials', {
-        redirect: false,
-        email: email.trim().toLowerCase(),
+        redirect:   false,
+        identifier: email.trim().toLowerCase(),
         password,
       });
 
       if (result?.error) {
-        // Fallback if login fails: redirect to manual sign-in page
-        setTimeout(() => {
-          router.push('/login');
-        }, 1500);
+        setTimeout(() => router.push('/login'), 1500);
       } else {
-        // Navigate directly to surveillance deck
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 1200);
+        setTimeout(() => router.push('/dashboard'), 1200);
       }
     } catch (err) {
-      console.error('Registration runtime error:', err);
-      setError('Connection failure: Registry channel timed out.');
+      console.error('Registration error:', err);
+      setError('Connection error. Please try again.');
       setIsLoading(false);
     }
   };
@@ -100,64 +94,83 @@ export default function SignUpPage() {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center flex-col gap-3 font-mono">
         <RefreshCw className="w-8 h-8 text-[#00FF41] animate-spin" />
-        <span className="text-xs text-[#00FF41] tracking-widest animate-pulse">
-          ARMING_REGISTRY_CHANNELS...
-        </span>
+        <span className="text-xs text-[#00FF41] tracking-widest animate-pulse">INITIALIZING...</span>
       </div>
     );
   }
 
+  const inputCls =
+    'w-full pl-10 pr-4 py-2.5 bg-[#050505]/60 border border-zinc-800 focus:border-[#00FF41]/40 rounded-lg text-xs font-mono text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-[#00FF41]/20 transition-all';
+
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden cyber-scanlines font-sans">
-      {/* Visual cyber underlay glows */}
       <div className="absolute top-1/4 left-1/4 w-[250px] h-[250px] bg-[#00FF41]/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-[250px] h-[250px] bg-red-500/5 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="w-full max-w-md relative z-10 space-y-6">
-        {/* Brand Terminal Header */}
+        {/* Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center p-2 border border-[#00FF41]/20 rounded-full bg-[#00FF41]/5 shadow-[0_0_15px_rgba(0,255,65,0.05)]">
             <Shield className="w-5 h-5 text-[#00FF41] animate-pulse" />
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-widest font-mono">RECRUIT AGENT</h2>
-          <p className="text-xs text-zinc-500 font-mono">CREATE OPERATIVE NODE / BITBASH SENTRY</p>
+          <h2 className="text-2xl font-bold text-white tracking-widest font-mono">CREATE ACCOUNT</h2>
+          <p className="text-xs text-zinc-500 font-mono">REGISTER / BITBASH CRYPTO SENTRY</p>
         </div>
 
-        {/* Dynamic Warning Alert */}
+        {/* Error */}
         {error && (
           <div className="p-3 bg-red-950/20 border border-red-500/30 rounded-lg flex items-start gap-2.5 animate-fadeIn">
             <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
             <div className="space-y-1 font-mono">
-              <span className="text-[10px] text-red-400 font-bold block uppercase leading-none">
-                REGISTRY FAULT DETECTED
-              </span>
+              <span className="text-[10px] text-red-400 font-bold block uppercase">ERROR</span>
               <p className="text-[11px] text-zinc-300 leading-tight">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Dynamic Success Alert */}
+        {/* Success */}
         {success && (
           <div className="p-3 bg-green-950/20 border border-[#00FF41]/30 rounded-lg flex items-start gap-2.5 animate-fadeIn">
             <CheckCircle2 className="w-4 h-4 text-[#00FF41] shrink-0 mt-0.5" />
             <div className="space-y-1 font-mono">
-              <span className="text-[10px] text-[#00FF41] font-bold block uppercase leading-none">
-                REGISTRY SLOT ALLOCATED
-              </span>
+              <span className="text-[10px] text-[#00FF41] font-bold block uppercase">SUCCESS</span>
               <p className="text-[11px] text-zinc-300 leading-tight">{success}</p>
             </div>
           </div>
         )}
 
-        {/* Tactical Glassmorphic Panel */}
+        {/* Form panel */}
         <div className="bg-[#111111]/80 backdrop-blur-md border border-zinc-800/80 rounded-xl p-6 shadow-2xl relative">
           <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-[#00FF41]/30 to-transparent" />
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* EMAIL INPUT FIELD */}
+            {/* USERNAME */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase block">
-                EMAIL IDENTIFIER
+                Username
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-600">
+                  <AtSign className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  required
+                  disabled={isLoading || !!success}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="amna_dev"
+                  maxLength={24}
+                  className={inputCls}
+                />
+              </div>
+              <p className="text-[9px] text-zinc-600 font-mono">3–24 characters · letters, numbers, _ or -</p>
+            </div>
+
+            {/* EMAIL */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase block">
+                Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-600">
@@ -170,15 +183,15 @@ export default function SignUpPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="operator@gmail.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#050505]/60 border border-zinc-850 focus:border-[#00FF41]/40 rounded-lg text-xs font-mono text-white placeholder-zinc-750 focus:outline-none focus:ring-1 focus:ring-[#00FF41]/20 transition-all"
+                  className={inputCls}
                 />
               </div>
             </div>
 
-            {/* PASSWORD INPUT FIELD */}
+            {/* PASSWORD */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase block">
-                SECURE PASSKEY
+                Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-600">
@@ -191,15 +204,15 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#050505]/60 border border-zinc-850 focus:border-[#00FF41]/40 rounded-lg text-xs font-mono text-white placeholder-zinc-750 focus:outline-none focus:ring-1 focus:ring-[#00FF41]/20 transition-all"
+                  className={inputCls}
                 />
               </div>
             </div>
 
-            {/* PASSWORD CONFIRM FIELD */}
+            {/* CONFIRM PASSWORD */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase block">
-                VERIFY PASSKEY
+                Confirm Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-600">
@@ -212,12 +225,11 @@ export default function SignUpPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter password"
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#050505]/60 border border-zinc-850 focus:border-[#00FF41]/40 rounded-lg text-xs font-mono text-white placeholder-zinc-750 focus:outline-none focus:ring-1 focus:ring-[#00FF41]/20 transition-all"
+                  className={inputCls}
                 />
               </div>
             </div>
 
-            {/* REGISTRY EXECUTION TRIGGER */}
             <button
               type="submit"
               disabled={isLoading || !!success}
@@ -226,25 +238,34 @@ export default function SignUpPage() {
               {isLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>COMPILING_CREDENTIAL_NODE...</span>
+                  <span>CREATING ACCOUNT...</span>
                 </>
               ) : (
                 <>
                   <Terminal className="w-4 h-4 text-[#00FF41]" />
-                  <span>Complete signup</span>
+                  <span>Create Account</span>
                 </>
               )}
             </button>
           </form>
 
-          {/* Helper panel link footer */}
+          {/* OAUTH SEPARATOR */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-zinc-900"></div>
+            </div>
+            <div className="relative flex justify-center text-[10px] uppercase">
+              <span className="bg-[#111111] px-2 text-zinc-600 font-mono">OR_SECURE_GATEWAY</span>
+            </div>
+          </div>
+
+          {/* GOOGLE OAUTH */}
+          <GoogleLoginButton text="Sign up with Google" />
+
           <div className="mt-5 pt-4 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500">
-            <span>Already Active?</span>
-            <Link
-              href="/login"
-              className="text-[#00FF41] hover:underline font-bold tracking-wider uppercase"
-            >
-              BACK TO TERMINAL
+            <span>Already have an account?</span>
+            <Link href="/login" className="text-[#00FF41] hover:underline font-bold tracking-wider uppercase">
+              Sign In
             </Link>
           </div>
         </div>

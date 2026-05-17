@@ -10,7 +10,7 @@ dotenv.config(); // Load environment variables (.env) for database connections
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import { fetchAllMarkets } from './services/coingecko';
+import { fetchMarketSnapshot } from './services/coingecko';
 
 const prisma = new PrismaClient();
 
@@ -38,7 +38,7 @@ async function main() {
     `🌐 Fetching live coin pricing data from CoinGecko to update ${alerts.length} alert baselines dynamically...`
   );
   try {
-    const markets = await fetchAllMarkets(false, true); // Fetch top 250 assets
+    const markets = await fetchMarketSnapshot(); // Fetch top 20 assets
     if (markets && Array.isArray(markets)) {
       let updatedCount = 0;
 

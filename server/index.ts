@@ -92,13 +92,21 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // ==============================================================================
 const server = app.listen(PORT, () => {
   logger.info(`=======================================================`);
-  logger.info(`  SENTRY EXPRESS ENGINE STARTED ON PORT ${PORT} `);
-  logger.info(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`  SENTRY EXPRESS ENGINE OPERATIONAL`);
+  logger.info(`  Local:        http://localhost:${PORT}`);
+  logger.info(`  Environment:  ${process.env.NODE_ENV || 'development'}`);
   logger.info(`=======================================================`);
 
   // Launch background trackers
   startFetcher(30000); // Poll CoinGecko and update price cache every 30s (30000ms)
   startDetector(30000); // Check database price alert thresholds every 30s (30000ms)
+}).on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    logger.error(`Port ${PORT} is already in use. Please terminate existing processes.`);
+  } else {
+    logger.error('Failed to start Express server: %O', err);
+  }
+  process.exit(1);
 });
 
 // ==============================================================================

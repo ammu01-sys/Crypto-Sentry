@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSession } from 'next-auth/react';
 
 // 1. DATA TYPES & SCHEMA DEFINITIONS
 export interface OnboardingStep {
@@ -111,17 +112,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [activeStep, setActiveStep] = useState(0);
   const [isActive, setIsActive] = useState(false);
 
-  // Check if onboarding was completed previously
-  useEffect(() => {
-    const completed = localStorage.getItem('sentry_onboarding_completed');
-    if (!completed) {
-      // Small buffer before beginning onboarding automatically
-      const timer = setTimeout(() => {
-        setIsActive(true);
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
+  const { update: updateSession } = useSession();
 
   const startTutorial = () => {
     setActiveStep(0);
@@ -142,9 +133,20 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const skipTutorial = () => {
+  const skipTutorial = async () => {
     setIsActive(false);
-    localStorage.setItem('sentry_onboarding_completed', 'true');
+    
+    // Persist to Database via API
+    try {
+      const res = await fetch('/api/user/tutorial', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        // Update local session state to prevent future auto-triggers
+        await updateSession();
+      }
+    } catch (error) {
+      console.error('Failed to persist tutorial status:', error);
+    }
   };
 
   return (
@@ -215,6 +217,7 @@ function SpotlightOverlay() {
         setTooltipPos({ top, left });
       } else {
         // Element not mounted or switching tabs, fallback to center screen
+        console.warn(`[SENTRY_GUIDE] Target element #${step.targetId} not found in DOM. Falling back to center.`);
         setRect(null);
         setTooltipPos({
           top: window.innerHeight / 2 - 100,

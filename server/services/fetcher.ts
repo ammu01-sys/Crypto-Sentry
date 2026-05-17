@@ -1,106 +1,83 @@
 // ==============================================================================
-// BACKGROUND PRICING SYNCHRONIZER (TYPESCRIPT)
+// BACKGROUND SNAPSHOT SYNCHRONIZER (TYPESCRIPT)
 // ==============================================================================
-// This service manages the automated polling loop that fetches live data from our
-// CoinGecko client and caches the parsed values in memory for other services to use.
+// This service manages the automated 30-second polling loop that fetches live 
+// snapshots from CoinGecko and populates the global memory cache.
 
 import logger from '../utils/logger';
 import cache from './cache';
-import { fetchAllMarkets } from './coingecko';
+import { fetchMarketSnapshot } from './coingecko';
 
-let isFetching = false; // Global execution lock to prevent parallel executions
-let cycleCount = 0; // Keeps track of ticks to trigger split updates (full vs partial)
+let isFetching = false; // Execution lock to prevent overlapping cycles
 
 /**
- * Executes a single price synchronization check.
- * Gathers the latest prices and populates our memory cache.
+ * Executes a fresh market snapshot synchronization.
+ * Completely replaces relevant memory cache entries with new data.
  */
 export async function pollPrices(): Promise<void> {
   if (isFetching) {
-    logger.warn(
-      'Previous background pricing synchronization is still running. Skipping this tick to prevent parallel overlap.'
-    );
+    logger.warn('Snapshot synchronization already in progress. Skipping cycle.');
     return;
   }
 
   isFetching = true;
-  logger.info('Background Price Fetcher starting CoinGecko synchronization...');
 
   try {
-    // 1. Determine cycle type: Force full refresh on first boot (cycleCount === 0),
-    // otherwise run a full refresh once every 10 cycles (5 minutes since tick interval is 30s).
-    // All other cycles run a partial refresh (fetching page 1 only).
-    const isCacheEmpty = cycleCount === 0;
-    const isFullRefreshTime = cycleCount % 10 === 0;
-    const fullRefresh = isCacheEmpty || isFullRefreshTime;
+    // 1. Fetch fresh top 20 snapshot
+    const markets = await fetchMarketSnapshot();
 
-    logger.info(
-      `Running ${fullRefresh ? 'FULL (up to 1000 assets)' : 'PARTIAL (top 250 assets)'} synchronization cycle...`
-    );
-
-    // Call fetchAllMarkets with fullRefresh parameters and bypassCache = true
-    const markets = await fetchAllMarkets(fullRefresh, true);
-
-    if (!markets || !Array.isArray(markets)) {
-      logger.warn(
-        'Received invalid or empty dataset from CoinGecko. Skipping memory cache synchronization.'
-      );
+    if (!markets || markets.length === 0) {
+      logger.warn('Received empty snapshot. Cache remains unchanged.');
       return;
     }
 
-    // 2. Map & Cache retrieved items
+    // 2. Deterministic Cache Update
+    // We update the global cache with fresh values. 
+    // Note: Other systems (like the detector) read from this global cache.
     for (const coin of markets) {
-      if (!coin.id) continue;
-
       cache.set(`price:${coin.id}`, {
         price: coin.current_price,
         change24h: coin.price_change_percentage_24h,
         name: coin.name,
         symbol: coin.symbol.toUpperCase(),
-        image: coin.image, // NEW: Capture asset logo URL
+        image: coin.image,
       });
     }
 
-    // Store global sync timestamp to monitor stale states
+    // Monitor system health via sync timestamp
     cache.set('system:last_updated', Date.now());
 
-    cycleCount++;
-    logger.info(
-      `Successfully synchronized ${markets.length} asset feeds in Memory Cache. Cycle Count: ${cycleCount}`
-    );
+    logger.info(`Background Engine: Cache updated with fresh ${markets.length} coin snapshot.`);
   } catch (error: any) {
-    logger.error('Failed to update background price feeds: %s', error.message || error);
+    logger.error('Background Snapshot Sync Failure: %s', error.message || error);
   } finally {
     isFetching = false;
   }
 }
 
-// Global variable holding the running setInterval reference
 let pollingIntervalId: NodeJS.Timeout | null = null;
 
 /**
- * Mounts and triggers the recurring price fetcher schedule.
- *
- * @param intervalMs How often the poller should execute (Defaults to 30000ms)
+ * Starts the 30-second snapshot synchronization loop.
  */
 export function startFetcher(intervalMs = 30000): void {
   if (pollingIntervalId) return;
 
-  // Sync prices immediately on server start
+  // Run immediate first sync
   pollPrices();
 
-  // Schedule subsequent sync loops
+  // Set deterministic interval
   pollingIntervalId = setInterval(pollPrices, intervalMs);
-  logger.info(`Background pricing feed scheduled to run every ${intervalMs}ms.`);
+  logger.info(`Background Snapshot Synchronizer active (Interval: ${intervalMs}ms)`);
 }
 
 /**
- * Safely stops and clears the pricing loop.
+ * Safely terminates the synchronization loop.
  */
 export function stopFetcher(): void {
   if (pollingIntervalId) {
     clearInterval(pollingIntervalId);
     pollingIntervalId = null;
-    logger.info('Background pricing feed stopped.');
+    logger.info('Background Snapshot Synchronizer stopped.');
   }
 }

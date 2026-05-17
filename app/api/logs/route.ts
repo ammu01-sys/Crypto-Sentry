@@ -15,14 +15,21 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. FETCH LOGS
-    // We return logs owned by this user, newest first.
+    // 2. FETCH WATCHLIST
+    // We need to know which coins the user is currently watching
+    const watchlist = await prisma.wishlist.findMany({
+      where: { userId: (session.user as any).id },
+      select: { assetId: true },
+    });
+
+    const watchedAssetIds = watchlist.map((item) => item.assetId);
+
+    // 3. FETCH LOGS
+    // We return logs owned by this user, filtered by their active watchlist.
     const logs = await prisma.eventLog.findMany({
       where: {
-        OR: [
-          { userId: (session.user as any).id },
-          { userId: null },
-        ],
+        userId: (session.user as any).id,
+        assetId: { in: watchedAssetIds },
       },
       orderBy: { createdAt: 'desc' },
       take: 50, // Limit to recent 50 events

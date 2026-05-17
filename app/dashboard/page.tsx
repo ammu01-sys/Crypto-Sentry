@@ -1,3 +1,10 @@
+/**
+ * DASHBOARD MAIN PAGE
+ * This is the primary protected route of the application.
+ * It serves as a container that checks for a valid user session 
+ * before rendering the interactive Dashboard Client.
+ */
+
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -6,34 +13,40 @@ import { redirect } from 'next/navigation';
 
 export default async function Page() {
   // 1. ACQUIRE CURRENT AUTHENTICATED AGENT CONTEXT
+  // We check for the session on the SERVER side. 
+  // This is faster and more secure than checking on the client.
   const session = await getServerSession(authOptions);
 
+  // 2. PROTECTED ROUTE LOGIC
+  // If no user is found, we immediately redirect to login.
+  // This prevents unauthenticated users from seeing the dashboard layout.
   if (!session || !session.user) {
     redirect('/login');
   }
 
   const userId = (session.user as any).id;
 
-  // 2. CONCURRENT PRISMA TELEMETRY QUERYING
+  // 3. CONCURRENT PRISMA TELEMETRY QUERYING
   // Triggers parallel lookups to minimize server-side latency
-  const [watchlistRows, logRows, userData] = await Promise.all([
-    prisma.wishlist.findMany({
-      where: { userId },
-      orderBy: { assetId: 'asc' },
-    }),
+  const watchlistRows = await prisma.wishlist.findMany({
+    where: { userId },
+    orderBy: { assetId: 'asc' },
+  });
+
+  const watchedAssetIds = watchlistRows.map((r) => r.assetId);
+
+  const [logRows, userData] = await Promise.all([
     prisma.eventLog.findMany({
       where: {
-        OR: [
-          { userId },
-          { userId: null },
-        ],
+        userId,
+        assetId: { in: watchedAssetIds },
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }),
     (prisma as any).user.findUnique({
       where: { id: userId },
-      select: { globalThreshold: true },
+      select: { globalThreshold: true, hasSeenTutorial: true, image: true },
     }),
   ]);
 
@@ -61,10 +74,14 @@ export default async function Page() {
   return (
     <DashboardClient
       userId={userId}
+      userName={(session.user as any).username || session.user.name || 'Agent'}
+      userEmail={session.user.email || ''}
+      userImage={(userData as any)?.image || session.user.image || undefined}
       initialWatchlist={initialWatchlist}
       initialEventLogs={logRows}
       initialPrices={initialPrices}
       initialThreshold={(userData as any)?.globalThreshold ?? -2.0}
+      hasSeenTutorial={(userData as any)?.hasSeenTutorial ?? false}
     />
   );
 }

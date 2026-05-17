@@ -54,19 +54,16 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST METHOD: Add a new coin to a user's watchlist.
- * Endpoint: POST /api/watchlist
- * Payload: { "userId": "...", "assetId": "bitcoin", "assetName": "Bitcoin" }
+ * This is a classic "CREATE" operation.
  */
 export async function POST(req: NextRequest) {
   try {
     // 1. SECURITY HANDSHAKE (SESSION VERIFICATION)
+    // We never trust the browser. We check the 'NextAuth' session to see who is actually calling.
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Unauthorized: Access is restricted to authenticated Sentry agents.',
-        },
+        { success: false, error: 'Unauthorized: You must be logged in.' },
         { status: 401 }
       );
     }
@@ -74,36 +71,21 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { userId, assetId, assetName } = body;
 
+    // 2. INPUT VALIDATION
     if (!userId || !assetId || !assetName) {
       return NextResponse.json(
-        { success: false, error: 'User ID, assetId, and assetName are required' },
+        { success: false, error: 'Missing required data.' },
         { status: 400 }
       );
     }
 
-    // CROSS-TENANT SECURITY GUARD: Ensure user can only insert records under their own account
+    // 3. CROSS-TENANT SECURITY GUARD
+    // This is CRITICAL. We ensure that the 'userId' sent in the request matches
+    // the 'userId' in the secret session cookie. This prevents User A from 
+    // adding coins to User B's account.
     if (userId !== (session.user as { id: string }).id) {
       return NextResponse.json(
-        {
-          success: false,
-          error:
-            'Forbidden: You cannot modify surveillance properties belonging to other accounts.',
-        },
-        { status: 403 }
-      );
-    }
-
-    // Pre-emptively validate that the userId exists in the database to prevent P2003 foreign key violations
-    const userExists = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!userExists) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Invalid supervisor session. No security agent registered under ID: ${userId}`,
-        },
+        { success: false, error: 'Forbidden: You cannot modify other accounts.' },
         { status: 403 }
       );
     }
@@ -111,7 +93,8 @@ export async function POST(req: NextRequest) {
     const cleanAssetId = assetId.toLowerCase().trim();
     const cleanAssetName = assetName.trim();
 
-    // Check duplicate using Prisma wishlist model
+    // 4. DUPLICATE CHECK
+    // We check if the coin is already in the list before adding it.
     const existingItem = await prisma.wishlist.findUnique({
       where: {
         userId_assetId: {
@@ -128,6 +111,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 5. DATABASE INSERTION (CREATE)
+    // Finally, we save the new item to the 'wishlists' table in PostgreSQL.
     const newItem = await prisma.wishlist.create({
       data: {
         userId,
@@ -142,6 +127,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
 
 /**
  * DELETE METHOD: Remove a coin from a user's watchlist.

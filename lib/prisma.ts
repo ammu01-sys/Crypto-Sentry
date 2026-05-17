@@ -4,7 +4,7 @@
 // In Next.js (App Router), every time you edit a file in development, the framework
 // hot-reloads (re-executes code). If we instantiated PrismaClient directly in our API
 // routes (like: `new PrismaClient()`), every hot-reload would open a new connection pool
-// to Supabase, exhausting your database connections (HTTP 500: Too many clients) in minutes.
+// to the database, exhausting your database connections (HTTP 500: Too many clients) in minutes.
 //
 // This file solves that by attaching PrismaClient to Node's global object, guaranteeing
 // that we instantiate only ONE PrismaClient singleton throughout the lifetime of the process.
