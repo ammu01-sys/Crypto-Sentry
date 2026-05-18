@@ -1,3 +1,4 @@
+// Main dashboard client: renders the full interactive monitoring UI — market data, watchlist, alerts, and settings.
 'use client';
 
 import React, { useState, useMemo, useEffect, useId, useRef } from 'react';

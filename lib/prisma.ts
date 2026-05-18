@@ -1,3 +1,4 @@
+// Exports a singleton PrismaClient instance to prevent connection pool exhaustion in Next.js.
 // ==============================================================================
 // PRISMA CLIENT SINGLETON INSTANCE
 // ==============================================================================
@@ -9,6 +10,7 @@
 // This file solves that by attaching PrismaClient to Node's global object, guaranteeing
 // that we instantiate only ONE PrismaClient singleton throughout the lifetime of the process.
 
+// Exports a singleton PrismaClient instance to prevent connection pool exhaustion in Next.js.
 import { PrismaClient } from '@prisma/client';
 
 // 1. TYPING THE GLOBAL OBJECT

@@ -1,3 +1,4 @@
+// Reusable Google OAuth button component that triggers signIn and shows a loading spinner.
 'use client';
 
 import React, { useState } from 'react';

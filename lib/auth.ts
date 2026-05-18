@@ -1,3 +1,4 @@
+// Defines NextAuth configuration: providers, JWT callbacks, session strategy, and signIn validation.
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
@@ -19,7 +20,7 @@ export const authOptions: NextAuthOptions = {
       allowDangerousEmailAccountLinking: true, // Link Google accounts to existing email-based accounts
       authorization: {
         params: {
-          access_type: "offline",
+          access_type: "offline",// request refresh token
           response_type: "code"
         }
       }
@@ -82,12 +83,26 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, trigger }) {
       const { cookies } = await import('next/headers');
 
+      // Sanitize token.picture and token.image to prevent HTTP 431 Request Header Too Large errors due to base64 images
+      if (token.picture && typeof token.picture === 'string' && token.picture.startsWith('data:image/')) {
+        delete token.picture;
+      }
+      if ((token as any).image && typeof (token as any).image === 'string' && (token as any).image.startsWith('data:image/')) {
+        delete (token as any).image;
+      }
+
       if (user) {
         token.id = user.id;
         token.username = (user as any).username || (user as any).name || '';
         token.twoFactorEnabled = (user as any).twoFactorEnabled || false;
         token.is2FAVerified = !(user as any).twoFactorEnabled;
         token.hasSeenTutorial = (user as any).hasSeenTutorial ?? false;
+
+        // Ensure user's database base64 image doesn't end up in token.picture/image
+        if (user.image && typeof user.image === 'string' && user.image.startsWith('data:image/')) {
+          delete token.picture;
+          delete (token as any).image;
+        }
 
         // Always fetch the latest profile from DB on sign-in to ensure accuracy
         const dbUser = await prisma.user.findUnique({
@@ -123,11 +138,12 @@ export const authOptions: NextAuthOptions = {
       if (trigger === "update" && token) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { hasSeenTutorial: true }
+          select: { hasSeenTutorial: true, twoFactorEnabled: true }
         }) as any;
 
         if (dbUser) {
           token.hasSeenTutorial = dbUser.hasSeenTutorial;
+          token.twoFactorEnabled = dbUser.twoFactorEnabled;
         }
 
         // Always mark as verified if we are updating (usually happens after 2FA)
@@ -157,6 +173,11 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).twoFactorEnabled = token.twoFactorEnabled as boolean;
         (session.user as any).hasSeenTutorial = token.hasSeenTutorial as boolean;
         (session.user as any).provider = token.provider as string;
+
+        // Prevent large base64 image from carrying over to session object
+        if (session.user.image && typeof session.user.image === 'string' && session.user.image.startsWith('data:image/')) {
+          session.user.image = undefined;
+        }
       }
       return session;
     },

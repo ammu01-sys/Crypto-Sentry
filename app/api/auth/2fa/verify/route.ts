@@ -1,3 +1,4 @@
+// API: validates a submitted TOTP code and stamps the session as 2FA-verified.
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';

@@ -78,7 +78,7 @@ async function initializeCooldowns(): Promise<void> {
  * It checks EVERY user's alert limits against the LIVE prices in our memory cache.
  */
 export async function evaluateAlerts(): Promise<void> {
-  logger.info('Executing global autonomous market surveillance scan...');
+  logger.info('[DETECTOR] ─── Surveillance scan starting ───');
 
   try {
     // 1. GATHER DATA
@@ -92,6 +92,8 @@ export async function evaluateAlerts(): Promise<void> {
       }),
     ]);
 
+    logger.info(`[DETECTOR] Found ${users.length} user(s), ${watchlists.length} watchlist item(s) in DB.`);
+
     // Map watchlists by user for O(1) lookup: userId -> Set of assetIds
     const watchlistMap = new Map<string, Set<string>>();
     for (const item of watchlists) {
@@ -104,7 +106,17 @@ export async function evaluateAlerts(): Promise<void> {
     const cachedData = cache.getAll();
     const priceKeys = Object.keys(cachedData).filter((k: string) => k.startsWith('price:'));
 
-    if (priceKeys.length === 0 || users.length === 0) return;
+    logger.info(`[DETECTOR] Price cache has ${priceKeys.length} coin(s): [${priceKeys.map(k => k.replace('price:', '')).join(', ')}]`);
+
+    if (priceKeys.length === 0) {
+      logger.warn('[DETECTOR] ⚠ No prices in cache yet — Express backend may still be fetching from CoinGecko. Skipping scan.');
+      return;
+    }
+
+    if (users.length === 0) {
+      logger.warn('[DETECTOR] ⚠ No users found in DB. Skipping scan.');
+      return;
+    }
 
     // 2. THE SCAN LOOP
     // For every coin in our price snapshot...
@@ -124,17 +136,24 @@ export async function evaluateAlerts(): Promise<void> {
         // WATCHLIST FILTER: Only proceed if the user is actively watching this asset
         const userWatchlist = watchlistMap.get(user.id);
         if (!userWatchlist || !userWatchlist.has(assetId)) {
-          continue; 
+          continue;
         }
 
         const threshold = user.globalThreshold;
-        
+
         // 3. DEFINE THE "CRIMES" (Triggers)
         const tasks = [
           { type: 'SENTRY_DROP', active: threshold < 0 && currentChange <= threshold },
           { type: 'SENTRY_SPIKE', active: threshold > 0 && currentChange >= threshold },
           { type: 'SENTRY_VOLATILITY', active: Math.abs(currentChange) >= 15.0 },
         ];
+
+        // DIAGNOSTIC: Log evaluation result for every user/coin match
+        logger.info(
+          `[DETECTOR] User ${user.id.slice(0,8)} | ${symbol} | ` +
+          `24h: ${currentChange.toFixed(2)}% | threshold: ${threshold}% | ` +
+          `DROP=${tasks[0].active} SPIKE=${tasks[1].active} VOLATILITY=${tasks[2].active}`
+        );
 
         for (const task of tasks) {
           const trackerKey = `${user.id}:${assetId}:${task.type}`;
@@ -156,6 +175,10 @@ export async function evaluateAlerts(): Promise<void> {
 
             if (timeDelta > 10 * 60 * 1000 && (priceDelta > 0.01 || changeDelta > 1.0)) {
               shouldAlert = true;
+            } else {
+              logger.debug(
+                `[DETECTOR] Suppressed duplicate ${task.type} for ${symbol} — timeDelta: ${Math.round(timeDelta/1000)}s, priceDelta: ${(priceDelta*100).toFixed(2)}%`
+              );
             }
           }
 
@@ -177,19 +200,27 @@ export async function evaluateAlerts(): Promise<void> {
                 },
               });
 
-              alertTracker.set(trackerKey, {
-                price: currentPrice,
-                change: currentChange,
-                timestamp: now,
-              });
-
-              if (!terminalLogIssued) {
-                logger.warn(`[WATCHLIST_BREACH] ${task.type} detected for ${symbol} on user ${user.id}.`);
-                terminalLogIssued = true;
-              }
+              logger.warn(`[ALERT_SAVED] ${task.type} for ${symbol} saved to DB for user ${user.id.slice(0,8)}.`);
             } catch (dbError: any) {
-              if (dbError.code === 'P2002') continue;
-              throw dbError;
+              if (dbError.code === 'P2002') {
+                // Fingerprint already exists in DB for this 30-min window — not an error, just skip
+                logger.debug(`[DETECTOR] Fingerprint collision for ${task.type}/${symbol} — already logged this window.`);
+              } else {
+                // Real DB error — surface it so we can diagnose
+                logger.error(`[DETECTOR] DB write failed for ${task.type}/${symbol}: ${dbError.message}`);
+              }
+            }
+
+            // Always update in-memory tracker regardless of DB outcome
+            alertTracker.set(trackerKey, {
+              price: currentPrice,
+              change: currentChange,
+              timestamp: now,
+            });
+
+            if (!terminalLogIssued) {
+              logger.warn(`[WATCHLIST_BREACH] ${task.type} detected for ${symbol} on user ${user.id}.`);
+              terminalLogIssued = true;
             }
           }
         }

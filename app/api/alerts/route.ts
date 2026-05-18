@@ -1,3 +1,4 @@
+// API: create, fetch, and delete price-drop alert targets per authenticated user.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';

@@ -1,3 +1,4 @@
+// Utility: retries any async function with exponential backoff + jitter to handle transient API failures.
 // ==============================================================================
 // EXPONENTIAL BACKOFF RETRY UTILITY WITH JITTER (TYPESCRIPT)
 // ==============================================================================

@@ -1,3 +1,4 @@
+// Settings client: lets users configure global alert thresholds and view account info.
 'use client';
 
 import React, { useState, useEffect } from 'react';

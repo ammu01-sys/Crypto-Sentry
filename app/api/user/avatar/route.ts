@@ -1,3 +1,4 @@
+// API: stores and deletes user profile picture (base64) in the PostgreSQL users.image column.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';

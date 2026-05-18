@@ -1,3 +1,4 @@
+// SpotlightGuide: onboarding tutorial overlay with step-by-step highlighting and auto-start for first-time users.
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';

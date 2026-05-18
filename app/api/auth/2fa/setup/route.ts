@@ -1,3 +1,4 @@
+// API: generates a TOTP secret and QR code to begin 2FA enrollment for the current user.
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';

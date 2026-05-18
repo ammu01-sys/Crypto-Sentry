@@ -1,3 +1,4 @@
+// Winston logger: writes timestamped logs to file (error.log / combined.log) and colorized console output.
 import winston from 'winston';
 import path from 'path';
 import { fileURLToPath } from 'url';

@@ -1,3 +1,4 @@
+// API: marks hasSeenTutorial=true in DB so the guided tutorial won't auto-start again.
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';

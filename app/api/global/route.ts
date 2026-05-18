@@ -1,3 +1,4 @@
+// API: fetches global crypto market cap and 24h volume from CoinGecko with 60s in-process cache.
 import { NextResponse } from 'next/server';
 
 // Fallback static values when CoinGecko is unavailable

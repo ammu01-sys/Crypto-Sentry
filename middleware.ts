@@ -1,3 +1,4 @@
+// Protects dashboard/API routes and enforces 2FA redirect logic on every request.
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 

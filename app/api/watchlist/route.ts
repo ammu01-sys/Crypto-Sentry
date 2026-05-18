@@ -1,3 +1,4 @@
+// API: CRUD for user watchlist (add/remove coins to monitor for price alerts).
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';

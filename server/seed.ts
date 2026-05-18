@@ -1,3 +1,4 @@
+// Seeds alert benchmarks in PostgreSQL using live CoinGecko prices for initial surveillance calibration.
 // ==============================================================================
 // DATABASE SURVEILLANCE SYNCHRONIZER (TYPESCRIPT)
 // ==============================================================================

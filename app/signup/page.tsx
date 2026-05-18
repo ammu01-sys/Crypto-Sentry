@@ -1,3 +1,4 @@
+// Sign-up page: registers new users with email/password or Google OAuth.
 'use client';
 
 import React, { useState, useEffect } from 'react';

@@ -45,12 +45,10 @@ model User {
   // 2FA & PERSISTENCE EXTENSIONS
   twoFactorEnabled    Boolean   @default(false)
   twoFactorSecret     String?   @db.Text
-  trustedDeviceToken  String?   @unique
   lastLoginAt         DateTime?
   hasSeenTutorial     Boolean   @default(false)
 
   accounts      Account[]
-  sessions      Session[]
   wishlists     Wishlist[]
   alerts        Alert[]
   eventLogs     EventLog[]
@@ -79,24 +77,7 @@ model Account {
   @@map("accounts")
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_tokens")
-}
 
 // B. WISHLIST ITEMS
 // Tracks individual coins added to a user's wish list.
@@ -117,21 +98,7 @@ model Wishlist {
   @@map("wishlists") // Database Mapping: Renames the physical PostgreSQL table to lowercase "wishlists"
 }
 
-// C. CRYPTO ALERTS
-// Holds active targets set by users to monitor price drop events.
-model Alert {
-  id             String   @id @default(uuid()) // Primary Key: Auto-generated UUID
-  userId         String   // Foreign Key: Points to the User who owns this alert
-  assetId        String   // The CoinGecko API slug of the asset to monitor (e.g., "solana")
-  price          Float    // The base price (benchmark rate) of the coin when the user created the alert
-  dropPercentage Float    // The user's target drop limit (e.g., 5.5 representing a 5.5% drop limit)
-  isTriggered    Boolean  @default(false) // Whether the alert has been triggered
-  createdAt      DateTime @default(now())     // Meta-log: Timestamp when the alert was created
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("alerts") // Database Mapping: Renames the physical PostgreSQL table to lowercase "alerts"
-}
 
 // D. HISTORICAL EVENT AUDIT LOGS
 // Records critical system events (such as price drops, triggers, and network errors) 

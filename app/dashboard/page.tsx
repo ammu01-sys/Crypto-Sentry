@@ -1,3 +1,4 @@
+// Dashboard server page: authenticates session, fetches watchlist + event logs from DB, and renders DashboardClient.
 /**
  * DASHBOARD MAIN PAGE
  * This is the primary protected route of the application.

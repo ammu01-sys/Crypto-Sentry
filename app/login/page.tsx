@@ -1,3 +1,4 @@
+// Login page: authenticates users via email/password or Google OAuth with cyberpunk UI.
 'use client';
 
 import React, { useState, useEffect } from 'react';

@@ -1,3 +1,4 @@
+// 2FA verification page: prompts users to enter their TOTP code before accessing the dashboard.
 'use client';
 
 import React, { useState, useEffect } from 'react';

@@ -1,3 +1,4 @@
+// Shared constants for polling intervals, supported tokens, API URLs, and per-user alert limits.
 // ==============================================================================
 // CONFIGURATION CONSTANTS FOR CRYPTO SENTRY BACKGROUND ENGINE
 // ==============================================================================

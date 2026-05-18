@@ -1,3 +1,4 @@
+// API: reads recent event logs from PostgreSQL to stream triggered price alerts to the dashboard.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';

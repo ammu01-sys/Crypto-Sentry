@@ -1,3 +1,4 @@
+// API: proxies live coin prices from the Express backend cache to the Next.js frontend.
 import { NextResponse } from 'next/server';
 
 // 1. BASELINE VALUE CONFIGURATION (Fallback Mock Dataset)

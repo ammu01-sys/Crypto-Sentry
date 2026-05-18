@@ -1,3 +1,4 @@
+// Generates TOTP secrets, QR codes, and validates 2FA tokens for two-factor authentication.
 import { generateSecret, generateURI, verifySync } from "otplib";
 import qrcode from 'qrcode';
 

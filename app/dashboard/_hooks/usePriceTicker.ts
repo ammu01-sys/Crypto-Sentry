@@ -1,3 +1,4 @@
+// Custom hook: polls /api/prices every 5s, maintains sparkline history, and streams live coin prices to the UI.
 'use client';
 
 import { useState, useEffect } from 'react';
